@@ -8,13 +8,20 @@ import QRCode from "qrcode";
 export const revalidate = 0;
 
 type Props = {
-  searchParams: Promise<{ reference?: string }>;
+  searchParams: Promise<{ reference?: string | string[]; trxref?: string | string[] }>;
 };
 
 export default async function CheckoutSuccessPage({ searchParams }: Props) {
-  const { reference } = await searchParams;
+  const params = await searchParams;
 
-  if (!reference) {
+  // Paystack's callback can arrive with the param duplicated (our own
+  // ?reference= plus Paystack's trxref, sometimes reference twice too).
+  // Next.js turns a duplicated key into a string[] — normalize to a single
+  // string before calling any string method on it.
+  const rawReference = params.reference ?? params.trxref;
+  const reference = Array.isArray(rawReference) ? rawReference[0] : rawReference;
+
+  if (!reference || typeof reference !== "string") {
     return (
       <StatusShell
         status="failed"
