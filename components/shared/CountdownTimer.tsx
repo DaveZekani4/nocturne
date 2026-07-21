@@ -50,7 +50,7 @@ export default function CountdownTimer() {
   return (
     <div className="mt-6">
       <p className="font-glitch text-[9.5px] uppercase tracking-[0.2em] text-foreground/50">
-        Countdown to Access
+        Countdown to the Rave, Hope you anticipatin?
       </p>
       <div className="mt-2 grid grid-cols-4 gap-2">
         {units.map((unit) => (

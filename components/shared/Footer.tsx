@@ -78,9 +78,7 @@ export default function Footer() {
       ZekaniK
     </a>
   </p>
-  <p className="font-glitch text-xs tracking-wider text-foreground/60">
-    Sponsored by <span className="text-neon-purple-bright">AgoraX</span>
-  </p>
+ 
 </div>
 
     </footer>
