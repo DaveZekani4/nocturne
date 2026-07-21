@@ -14,10 +14,11 @@ type Props = {
 export default async function CheckoutSuccessPage({ searchParams }: Props) {
   const params = await searchParams;
 
-  // Paystack's callback can arrive with the param duplicated (our own
-  // ?reference= plus Paystack's trxref, sometimes reference twice too).
-  // Next.js turns a duplicated key into a string[] — normalize to a single
-  // string before calling any string method on it.
+  // Paystack's callback can arrive with the param duplicated (e.g. our own
+  // `?reference=` plus Paystack's `trxref`), and Next.js turns a duplicated
+  // key into a string[]. Normalize everything to a single string before we
+  // ever call a string method on it, and fall back to trxref if reference
+  // is missing entirely.
   const rawReference = params.reference ?? params.trxref;
   const reference = Array.isArray(rawReference) ? rawReference[0] : rawReference;
 
@@ -103,16 +104,16 @@ async function TicketSuccess({ order }: { order: Order }) {
     .eq("order_id", order.id)
     .order("created_at", { ascending: true });
 
-  const passesWithQr = await Promise.all(
-    ((passes as TicketPass[]) ?? []).map(async (pass) => ({
-      pass,
-      qr: await QRCode.toDataURL(pass.code, {
-        margin: 1,
-        color: { dark: "#131313", light: "#f5f5f5" },
-        width: 240,
-      }),
-    }))
-  );
+  const passList = (passes as TicketPass[]) ?? [];
+  const groupSize = passList.length;
+
+  // One QR for the whole order — scanning it at the gate checks in every
+  // pass under this order together, so the group walks in on one scan.
+  const orderQr = await QRCode.toDataURL(order.paystack_ref, {
+    margin: 1,
+    color: { dark: "#131313", light: "#f5f5f5" },
+    width: 260,
+  });
 
   return (
     <section className="flex min-h-[75vh] flex-col items-center px-6 py-12 text-center">
@@ -151,38 +152,32 @@ async function TicketSuccess({ order }: { order: Order }) {
         </div>
       </div>
 
-      {passesWithQr.length > 0 && (
+      {groupSize > 0 && (
         <div className="mt-8 w-full max-w-sm">
           <p className="font-glitch text-[10px] uppercase tracking-wider text-foreground/50">
-            Your Passes — Show At The Gate
+            Show This At The Gate
           </p>
-          <div className="mt-3 flex flex-col gap-4">
-            {passesWithQr.map(({ pass, qr }) => (
-              <div
-                key={pass.id}
-                className="border border-border-subtle bg-surface p-4"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={qr}
-                  alt={`QR code for ${pass.tier_name} pass`}
-                  className="mx-auto h-40 w-40"
-                />
-                <p className="mt-3 font-display font-700 text-sm">
-                  {pass.tier_name}
-                </p>
-                <p className="font-glitch text-xs tracking-wider text-foreground/50">
-                  {pass.code}
-                </p>
-              </div>
-            ))}
+          <div className="mt-3 border border-border-subtle bg-surface p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={orderQr}
+              alt="QR code for your order — scan once at the gate"
+              className="mx-auto h-52 w-52"
+            />
+            <p className="mt-3 font-display font-700 text-sm">
+              {groupSize} {groupSize === 1 ? "ticket" : "tickets"} on this QR
+            </p>
+            <p className="font-glitch text-xs tracking-wider text-foreground/50">
+              {order.paystack_ref}
+            </p>
           </div>
         </div>
       )}
 
       <p className="mt-6 max-w-xs text-xs text-foreground/50">
         A confirmation has been sent to {order.email}. Screenshot this page
-        or save it, each pass is scanned once at the gate.
+        or save it — one scan at the gate lets your whole group in
+        {groupSize > 1 ? ` (all ${groupSize} of you)` : ""}.
       </p>
 
       <Link

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidPaystackSignature, generatePassCode } from "@/lib/paystack";
+import { sendTicketConfirmationEmail, sendMerchConfirmationEmail } from "@/lib/email";
 import type { OrderLineItem } from "@/types";
 import type { CartItem } from "@/types";
 
@@ -18,7 +19,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  const event = JSON.parse(rawBody);
+  let event: { event?: string; data?: { reference?: unknown } };
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    // Malformed payload — acknowledge so Paystack doesn't retry forever,
+    // but there's nothing for us to process.
+    return NextResponse.json({ received: true });
+  }
+
   const supabase = createAdminClient();
 
   if (event.event !== "charge.success") {
@@ -26,7 +35,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   }
 
-  const reference: string = event.data.reference;
+  const reference = event.data?.reference;
+
+  if (typeof reference !== "string" || reference.length === 0) {
+    // Unexpected payload shape — log it so we can see it, but don't crash.
+    console.error("Webhook charge.success with missing/invalid reference:", event);
+    return NextResponse.json({ received: true });
+  }
 
   // Try ticket orders first, then merch orders — reference prefix tells us which.
   if (reference.startsWith("NR1-TIX-")) {
@@ -93,6 +108,11 @@ async function handleTicketOrder(
   if (passRows.length > 0) {
     await supabase.from("ticket_passes").insert(passRows);
   }
+
+  // Fire-and-forget-ish: awaited so errors are caught and logged inside
+  // sendTicketConfirmationEmail, but a failure here never throws back
+  // into the webhook — the payment is already confirmed either way.
+  await sendTicketConfirmationEmail(order, passRows.length);
 }
 
 async function handleMerchOrder(
@@ -128,4 +148,6 @@ async function handleMerchOrder(
     .from("merch_orders")
     .update({ status: "success" })
     .eq("id", order.id);
+
+  await sendMerchConfirmationEmail(order);
 }

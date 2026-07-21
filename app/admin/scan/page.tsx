@@ -7,7 +7,8 @@ import { CheckCircle2, XCircle, AlertTriangle, ScanLine } from "lucide-react";
 type ScanResult = {
   status: "valid" | "duplicate" | "invalid";
   message: string;
-  pass?: { tier_name: string; full_name: string };
+  breakdown?: string;
+  groupSize?: number;
 };
 
 export default function GateScannerPage() {
@@ -136,14 +137,14 @@ export default function GateScannerPage() {
             {result.status === "duplicate" && <AlertTriangle size={48} className="text-background" />}
             {result.status === "invalid" && <XCircle size={48} className="text-background" />}
 
-            {result.pass && (
+            {result.groupSize !== undefined && (
               <p className="font-display font-800 text-lg text-background">
-                {result.pass.full_name}
+                {result.groupSize} {result.groupSize === 1 ? "guest" : "guests"}
               </p>
             )}
-            {result.pass && (
+            {result.breakdown && (
               <p className="font-glitch text-xs uppercase tracking-wider text-background/80">
-                {result.pass.tier_name}
+                {result.breakdown}
               </p>
             )}
             <p className="font-glitch text-xs text-background/90">
